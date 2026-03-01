@@ -8,7 +8,11 @@ The tool is designed to handle large-scale bibliographic data (N=11,100) by impl
 arget Keywords (Regex) |
 | :--- | :--- | :--- |
 | **Accountability** | 4.0 | accountability, traceability, provenance, audit, forensics... |
+
+
 | **Management & UI**| 3.0 | management system, dashboard, gui, visualization, interface... |
+
+
 | **Technology Stack**| 3.0 | (blockchain/smart contract) AND (iot/edge/fog/sensor)... |
 
 
