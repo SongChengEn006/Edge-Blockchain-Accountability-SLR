@@ -1,0 +1,68 @@
+
+
+
+import pandas as pd
+import re
+
+def clean_text(text):
+    """清理文本，仅保留小写字母和数字，用于高精度去重匹配"""
+    if pd.isna(text): return ""
+    return re.sub(r'[^a-z0-9]', '', str(text).lower()).strip()
+
+def slr_screening_pipeline(input_file, output_file):
+    print("🚀 开始自动化文献筛选流水线...")
+    
+    # 1. 加载原始数据 (从各数据库汇总后的 8470 条记录)
+    df = pd.read_csv(input_file)
+    initial_count = len(df)
+    print(f"统计：原始导入记录数 n = {initial_count}")
+
+    # 2. 第一阶段：两阶段自动化去重 (Multi-stage Deduplication)
+    # A. 基于 DOI 去重
+    df = df.drop_duplicates(subset=['DOI'], keep='first')
+    # B. 基于标题的模糊匹配去重 (忽略大小写、空格和特殊符号)
+    df['title_clean'] = df['Title'].apply(clean_text)
+    df = df.drop_duplicates(subset=['title_clean'], keep='first')
+    
+    after_dedup_count = len(df)
+    removed_duplicates = initial_count - after_dedup_count
+    print(f"统计：自动化脚本移除重复项 n = {removed_duplicates}")
+    print(f"统计：进入打分环节的唯一记录数 n = {after_dedup_count}")
+
+    # 3. 三维权重打分引擎定义
+    # 维度1: 责任追踪与审计 (Weight: 4.0)
+    pattern_acc = r'\b(accountability|traceability|non-repudiation|provenance|audit|forensics)\b'
+    # 维度2: 管理系统与可视化界面 (Weight: 3.0)
+    pattern_ui = r'\b(management system|dashboard|gui|interface|visualization|interaction)\b'
+    # 维度3: 技术栈交集 - 边缘区块链 (Weight: 3.0)
+    pattern_bc = r'\b(blockchain|smart contract|distributed ledger)\b'
+    pattern_iot = r'\b(iot|edge computing|fog|sensor|mec)\b'
+
+    def calculate_scores(row):
+        content = f"{row['Title']} {row['Abstract Note']}".lower()
+        
+        # D1 Score: Accountability
+        d1 = 4.0 if len(re.findall(pattern_acc, content)) >= 1 else 0.0
+        # D2 Score: UI/Management
+        d2 = 3.0 if len(re.findall(pattern_ui, content)) >= 1 else 0.0
+        # D3 Score: Tech Intersection (Must have both BC and IoT)
+        d3 = 3.0 if re.search(pattern_bc, content) and re.search(pattern_iot, content) else 0.0
+        
+        total = d1 + d2 + d3
+        return pd.Series([total, d1, d2, d3])
+
+    # 4. 执行自动打分
+    print("🔍 正在执行 AI 逻辑打分...")
+    df[['Total_Score', 'Score_Acc', 'Score_UI', 'Score_Tech']] = df.apply(calculate_scores, axis=1)
+
+    # 5. 筛选核心文献 (阈值设定为 8.0)
+    df_final = df[df['Total_Score'] >= 8.0].sort_values(by='Total_Score', ascending=False)
+    
+    # 6. 保存结果
+    df_final.to_csv(output_file, index=False)
+    print(f"✅ 筛选完成！最终入选核心文献数 n = {len(df_final)}")
+    print(f"输出文件已保存至: {output_file}")
+
+if __name__ == "__main__":
+    # 使用时确保文件名正确
+    slr_screening_pipeline('Exported_Library_8470.csv', 'Core_34_Final.csv')
